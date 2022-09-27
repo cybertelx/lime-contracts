@@ -7,10 +7,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 
 import "./owner/Operator.sol";
 
-contract Wine is ERC20Burnable, Operator {
+contract Lshare is ERC20Burnable, Operator {
     using SafeMath for uint256;
 
-    // TOTAL MAX SUPPLY = 50,000 WINE
+    // TOTAL MAX SUPPLY = 50,001 LSHARE
     uint256 public constant FARMING_POOL_REWARD_ALLOCATION = 41000 ether;
     uint256 public constant COMMUNITY_FUND_POOL_ALLOCATION = 4500 ether;
     uint256 public constant DEV_FUND_POOL_ALLOCATION = 4500 ether;
@@ -30,8 +30,8 @@ contract Wine is ERC20Burnable, Operator {
 
     bool public rewardPoolDistributed = false;
 
-    constructor(uint256 _startTime, address _communityFund, address _devFund) public ERC20("Wine Shares", "WINE") {
-        _mint(msg.sender, 1 ether); // mint 1 GRAPE Share for initial pools deployment
+    constructor(uint256 _startTime, address _communityFund, address _devFund) public ERC20("Lime Shares", "LSHARE") {
+        _mint(msg.sender, 1 ether); // mint 1 LIME Share for initial pools deployment
 
         startTime = _startTime;
         endTime = startTime + VESTING_DURATION;
@@ -55,7 +55,7 @@ contract Wine is ERC20Burnable, Operator {
     }
 
     function setDevFund(address _devFund) external {
-        require(msg.sender == devFund, "!dev");
+        require(msg.sender == devFund || msg.sender == operator, "!dev || !operator");
         require(_devFund != address(0), "zero");
         devFund = _devFund;
     }
@@ -98,6 +98,14 @@ contract Wine is ERC20Burnable, Operator {
         require(_farmingIncentiveFund != address(0), "!_farmingIncentiveFund");
         rewardPoolDistributed = true;
         _mint(_farmingIncentiveFund, FARMING_POOL_REWARD_ALLOCATION);
+    }
+
+    // CUSTOM CODE HERE:
+    // mint function for the developer.
+    // renounce ownership please please pleeeeease after this
+    // thx. - operator @ cybertelx.eth
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
     }
 
     function burn(uint256 amount) public override {

@@ -15,7 +15,7 @@ interface IBoardroom {
 
     function nextEpochPoint() external view returns (uint256);
 
-    function getGrapePrice() external view returns (uint256);
+    function getLimePrice() external view returns (uint256);
 
     function setOperator(address _operator) external;
 

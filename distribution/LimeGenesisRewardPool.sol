@@ -6,10 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-
-// Note that this pool has no minter key of GRAPE (rewards).
-// Instead, the governance will call GRAPE distributeReward method and send reward to this pool at the beginning.
-contract GrapeGenesisRewardPool {
+// Note that this pool has no minter key of LIME (rewards).
+// Instead, the governance will call LIME distributeReward method and send reward to this pool at the beginning.
+contract LimeGenesisRewardPool {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -25,14 +24,14 @@ contract GrapeGenesisRewardPool {
     // Info of each pool.
     struct PoolInfo {
         IERC20 token; // Address of LP token contract.
-        uint256 allocPoint; // How many allocation points assigned to this pool. GRAPE to distribute.
-        uint256 lastRewardTime; // Last time that GRAPE distribution occurs.
-        uint256 accGrapePerShare; // Accumulated GRAPE per share, times 1e18. See below.
+        uint256 allocPoint; // How many allocation points assigned to this pool. LIME to distribute.
+        uint256 lastRewardTime; // Last time that LIME distribution occurs.
+        uint256 accLimePerShare; // Accumulated LIME per share, times 1e18. See below.
         bool isStarted; // if lastRewardBlock has passed
     }
 
-    IERC20 public grape;
-    address public mim;
+    IERC20 public lime;
+    address public USDCe;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -43,23 +42,15 @@ contract GrapeGenesisRewardPool {
     // Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint = 0;
 
-    // The time when GRAPE mining starts.
+    // The time when LIME mining starts.
     uint256 public poolStartTime;
 
-    // The time when GRAPE mining ends.
+    // The time when LIME mining ends.
     uint256 public poolEndTime;
 
-    // TESTNET
-    uint256 public grapePerSecond = 0.66667 ether; // 2400 GRAPE / (1h * 60min * 60s)
-    uint256 public runningTime = 1 hours; // 1 hours
-    uint256 public constant TOTAL_REWARDS = 2400 ether;
-    // END TESTNET
-
-    // MAINNET
-    //uint256 public grapePerSecond = 0.02777 ether; // 2400 GRAPE / (24h * 60min * 60s)
-    //uint256 public runningTime = 1 days; // 1 days
-    //uint256 public constant TOTAL_REWARDS = 2400 ether;
-    // END MAINNET
+    uint256 public limePerSecond = 0 ether; // TOTAL_REWARDS LIME / (1h * 60min * 60s)
+    uint256 public runningTime = 0 hours; // 0 hours
+    uint256 public TOTAL_REWARDS = 0 ether;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -67,27 +58,35 @@ contract GrapeGenesisRewardPool {
     event RewardPaid(address indexed user, uint256 amount);
 
     constructor(
-        address _grape,
-        address _mim,
-        uint256 _poolStartTime
+        address _lime,
+        address _USDCe
     ) public {
-        require(block.timestamp < _poolStartTime, "late");
-        if (_grape != address(0)) grape = IERC20(_grape);
-        if (_mim != address(0)) mim = _mim;
-        poolStartTime = _poolStartTime;
-        poolEndTime = poolStartTime + runningTime;
+        if (_lime != address(0)) lime = IERC20(_lime);
+        if (_USDCe != address(0)) USDCe = _USDCe;
+        poolStartTime = 10**18; // not happening in a looooong time
+        poolEndTime = 10**18;
         operator = msg.sender;
     }
 
     modifier onlyOperator() {
-        require(operator == msg.sender, "GrapeGenesisPool: caller is not the operator");
+        require(operator == msg.sender, "LimeGenesisPool: caller is not the operator");
         _;
+    }
+
+    // if you wanna delay
+    function setStart(uint256 _poolStartTime, uint256 _limePerSecond, uint256 _runningTime, uint256 _totalRewards) {
+        require(poolStartTime < block.timestamp, "pool is already started");
+        TOTAL_REWARDS = _totalRewards;
+        runningTime = _runningTime;
+        limePerSecond = _limePerSecond;
+        poolStartTime = _poolStartTime;
+        poolEndTime = _poolStartTime + _runningTime;
     }
 
     function checkPoolDuplicate(IERC20 _token) internal view {
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
-            require(poolInfo[pid].token != _token, "GrapeGenesisPool: existing pool?");
+            require(poolInfo[pid].token != _token, "LimeGenesisPool: existing pool?");
         }
     }
 
@@ -118,13 +117,13 @@ contract GrapeGenesisRewardPool {
             }
         }
         bool _isStarted = (_lastRewardTime <= poolStartTime) || (_lastRewardTime <= block.timestamp);
-        poolInfo.push(PoolInfo({token: _token, allocPoint: _allocPoint, lastRewardTime: _lastRewardTime, accGrapePerShare: 0, isStarted: _isStarted}));
+        poolInfo.push(PoolInfo({token: _token, allocPoint: _allocPoint, lastRewardTime: _lastRewardTime, accLimePerShare: 0, isStarted: _isStarted}));
         if (_isStarted) {
             totalAllocPoint = totalAllocPoint.add(_allocPoint);
         }
     }
 
-    // Update the given pool's GRAPE allocation point. Can only be called by the owner.
+    // Update the given pool's LIME allocation point. Can only be called by the owner.
     function set(uint256 _pid, uint256 _allocPoint) public onlyOperator {
         massUpdatePools();
         PoolInfo storage pool = poolInfo[_pid];
@@ -139,27 +138,27 @@ contract GrapeGenesisRewardPool {
         if (_fromTime >= _toTime) return 0;
         if (_toTime >= poolEndTime) {
             if (_fromTime >= poolEndTime) return 0;
-            if (_fromTime <= poolStartTime) return poolEndTime.sub(poolStartTime).mul(grapePerSecond);
-            return poolEndTime.sub(_fromTime).mul(grapePerSecond);
+            if (_fromTime <= poolStartTime) return poolEndTime.sub(poolStartTime).mul(limePerSecond);
+            return poolEndTime.sub(_fromTime).mul(limePerSecond);
         } else {
             if (_toTime <= poolStartTime) return 0;
-            if (_fromTime <= poolStartTime) return _toTime.sub(poolStartTime).mul(grapePerSecond);
-            return _toTime.sub(_fromTime).mul(grapePerSecond);
+            if (_fromTime <= poolStartTime) return _toTime.sub(poolStartTime).mul(limePerSecond);
+            return _toTime.sub(_fromTime).mul(limePerSecond);
         }
     }
 
-    // View function to see pending GRAPE on frontend.
-    function pendingGRAPE(uint256 _pid, address _user) external view returns (uint256) {
+    // View function to see pending LIME on frontend.
+    function pendingLIME(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accGrapePerShare = pool.accGrapePerShare;
+        uint256 accLimePerShare = pool.accLimePerShare;
         uint256 tokenSupply = pool.token.balanceOf(address(this));
         if (block.timestamp > pool.lastRewardTime && tokenSupply != 0) {
             uint256 _generatedReward = getGeneratedReward(pool.lastRewardTime, block.timestamp);
-            uint256 _grapeReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
-            accGrapePerShare = accGrapePerShare.add(_grapeReward.mul(1e18).div(tokenSupply));
+            uint256 _limeReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
+            accLimePerShare = accLimePerShare.add(_limeReward.mul(1e18).div(tokenSupply));
         }
-        return user.amount.mul(accGrapePerShare).div(1e18).sub(user.rewardDebt);
+        return user.amount.mul(accLimePerShare).div(1e18).sub(user.rewardDebt);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -187,8 +186,8 @@ contract GrapeGenesisRewardPool {
         }
         if (totalAllocPoint > 0) {
             uint256 _generatedReward = getGeneratedReward(pool.lastRewardTime, block.timestamp);
-            uint256 _grapeReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
-            pool.accGrapePerShare = pool.accGrapePerShare.add(_grapeReward.mul(1e18).div(tokenSupply));
+            uint256 _limeReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
+            pool.accLimePerShare = pool.accLimePerShare.add(_limeReward.mul(1e18).div(tokenSupply));
         }
         pool.lastRewardTime = block.timestamp;
     }
@@ -200,21 +199,21 @@ contract GrapeGenesisRewardPool {
         UserInfo storage user = userInfo[_pid][_sender];
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 _pending = user.amount.mul(pool.accGrapePerShare).div(1e18).sub(user.rewardDebt);
+            uint256 _pending = user.amount.mul(pool.accLimePerShare).div(1e18).sub(user.rewardDebt);
             if (_pending > 0) {
-                safeGrapeTransfer(_sender, _pending);
+                safeLimeTransfer(_sender, _pending);
                 emit RewardPaid(_sender, _pending);
             }
         }
         if (_amount > 0) {
             pool.token.safeTransferFrom(_sender, address(this), _amount);
-            if (address(pool.token) == mim) {
+            if (address(pool.token) == USDCe) {
                 user.amount = user.amount.add(_amount.mul(9900).div(10000));
             } else {
                 user.amount = user.amount.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accGrapePerShare).div(1e18);
+        user.rewardDebt = user.amount.mul(pool.accLimePerShare).div(1e18);
         emit Deposit(_sender, _pid, _amount);
     }
 
@@ -225,16 +224,16 @@ contract GrapeGenesisRewardPool {
         UserInfo storage user = userInfo[_pid][_sender];
         require(user.amount >= _amount, "withdraw: not good");
         updatePool(_pid);
-        uint256 _pending = user.amount.mul(pool.accGrapePerShare).div(1e18).sub(user.rewardDebt);
+        uint256 _pending = user.amount.mul(pool.accLimePerShare).div(1e18).sub(user.rewardDebt);
         if (_pending > 0) {
-            safeGrapeTransfer(_sender, _pending);
+            safeLimeTransfer(_sender, _pending);
             emit RewardPaid(_sender, _pending);
         }
         if (_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.token.safeTransfer(_sender, _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accGrapePerShare).div(1e18);
+        user.rewardDebt = user.amount.mul(pool.accLimePerShare).div(1e18);
         emit Withdraw(_sender, _pid, _amount);
     }
 
@@ -249,14 +248,14 @@ contract GrapeGenesisRewardPool {
         emit EmergencyWithdraw(msg.sender, _pid, _amount);
     }
 
-    // Safe GRAPE transfer function, just in case a rounding error causes pool to not have enough GRAPEs.
-    function safeGrapeTransfer(address _to, uint256 _amount) internal {
-        uint256 _grapeBalance = grape.balanceOf(address(this));
-        if (_grapeBalance > 0) {
-            if (_amount > _grapeBalance) {
-                grape.safeTransfer(_to, _grapeBalance);
+    // Safe LIME transfer function, just in case a rounding error causes pool to not have enough LIMEs.
+    function safeLimeTransfer(address _to, uint256 _amount) internal {
+        uint256 _limeBalance = lime.balanceOf(address(this));
+        if (_limeBalance > 0) {
+            if (_amount > _limeBalance) {
+                lime.safeTransfer(_to, _limeBalance);
             } else {
-                grape.safeTransfer(_to, _amount);
+                lime.safeTransfer(_to, _amount);
             }
         }
     }
@@ -271,8 +270,8 @@ contract GrapeGenesisRewardPool {
         address to
     ) external onlyOperator {
         if (block.timestamp < poolEndTime + 90 days) {
-            // do not allow to drain core token (GRAPE or lps) if less than 90 days after pool ends
-            require(_token != grape, "grape");
+            // do not allow to drain core token (LIME or lps) if less than 90 days after pool ends
+            require(_token != lime, "lime");
             uint256 length = poolInfo.length;
             for (uint256 pid = 0; pid < length; ++pid) {
                 PoolInfo storage pool = poolInfo[pid];
